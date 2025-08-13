@@ -3,69 +3,166 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Mail, MessageSquare, Phone, MapPin } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Mail, MessageSquare, Phone, MapPin, Loader2 } from "lucide-react";
+import { sendContactEmail, type ContactFormData } from "@/services/emailService";
+import { useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+const createContactSchema = (t: (key: string) => string) => z.object({
+  name: z.string().min(2, t('contact.nameRequired')),
+  email: z.string().email(t('contact.emailInvalid')),
+  subject: z.string().min(3, t('contact.subjectRequired')),
+  message: z.string().min(10, t('contact.messageRequired')),
+});
 
 const Contact = () => {
+  const { toast } = useToast();
+  const { t } = useLanguage();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const contactSchema = createContactSchema(t);
+  type ContactFormInputs = z.infer<typeof contactSchema>;
+  
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<ContactFormInputs>({
+    resolver: zodResolver(contactSchema),
+  });
+
+  const onSubmit = async (data: ContactFormInputs) => {
+    setIsSubmitting(true);
+    
+    try {
+      const formData: ContactFormData = {
+        name: data.name,
+        email: data.email,
+        subject: data.subject,
+        message: data.message,
+        product: "ITopIA Boards",
+      };
+
+      await sendContactEmail(formData);
+      
+      toast({
+        title: t('contact.success'),
+        description: t('contact.successDescription'),
+      });
+      
+      reset();
+    } catch (error) {
+      console.error('Error sending email:', error);
+      toast({
+        title: t('contact.error'),
+        description: t('contact.errorDescription'),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <section id="contact" className="py-20 bg-background">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold mb-6 text-foreground">
-            Get in
-            <span className="text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text"> Touch</span>
+            {t('contact.title').split(' ').slice(0, -1).join(' ')}
+            <span className="text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text"> {t('contact.title').split(' ').slice(-1)}</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Have questions or need help getting started? Our team is here to support you every step of the way.
+            {t('contact.subtitle')}
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Contact Form */}
           <Card className="p-8 border-border bg-card/50 backdrop-blur-sm">
-            <h3 className="text-2xl font-semibold mb-6 text-card-foreground">Send us a message</h3>
-            <form className="space-y-6">
+            <h3 className="text-2xl font-semibold mb-6 text-card-foreground">{t('contact.formTitle')}</h3>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="name" className="text-card-foreground">Name</Label>
+                  <Label htmlFor="name" className="text-card-foreground">{t('contact.name')} *</Label>
                   <Input 
-                    id="name" 
-                    placeholder="Your name" 
+                    id="name"
+                    {...register("name")}
+                    placeholder={t('contact.namePlaceholder')} 
                     className="mt-2 border-border focus:border-primary"
+                    disabled={isSubmitting}
                   />
+                  {errors.name && (
+                    <p className="text-destructive text-sm mt-1">{errors.name.message}</p>
+                  )}
                 </div>
                 <div>
-                  <Label htmlFor="email" className="text-card-foreground">Email</Label>
+                  <Label htmlFor="email" className="text-card-foreground">{t('contact.email')} *</Label>
                   <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="your@email.com" 
+                    id="email"
+                    type="email"
+                    {...register("email")}
+                    placeholder={t('contact.emailPlaceholder')} 
                     className="mt-2 border-border focus:border-primary"
+                    disabled={isSubmitting}
                   />
+                  {errors.email && (
+                    <p className="text-destructive text-sm mt-1">{errors.email.message}</p>
+                  )}
                 </div>
               </div>
               
               <div>
-                <Label htmlFor="subject" className="text-card-foreground">Subject</Label>
+                <Label htmlFor="subject" className="text-card-foreground">{t('contact.subject')} *</Label>
                 <Input 
-                  id="subject" 
-                  placeholder="What can we help you with?" 
+                  id="subject"
+                  {...register("subject")}
+                  placeholder={t('contact.subjectPlaceholder')} 
                   className="mt-2 border-border focus:border-primary"
+                  disabled={isSubmitting}
                 />
+                {errors.subject && (
+                  <p className="text-destructive text-sm mt-1">{errors.subject.message}</p>
+                )}
               </div>
               
               <div>
-                <Label htmlFor="message" className="text-card-foreground">Message</Label>
+                <Label htmlFor="message" className="text-card-foreground">{t('contact.message')} *</Label>
                 <Textarea 
-                  id="message" 
-                  placeholder="Tell us about your project or question..." 
+                  id="message"
+                  {...register("message")}
+                  placeholder={t('contact.messagePlaceholder')} 
                   rows={5}
                   className="mt-2 border-border focus:border-primary resize-none"
+                  disabled={isSubmitting}
                 />
+                {errors.message && (
+                  <p className="text-destructive text-sm mt-1">{errors.message.message}</p>
+                )}
               </div>
               
-              <Button variant="default" size="lg" className="w-full">
-                <MessageSquare className="mr-2 h-5 w-5" />
-                Send Message
+              <Button 
+                type="submit" 
+                variant="default" 
+                size="lg" 
+                className="w-full"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    {t('contact.sending')}
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="mr-2 h-5 w-5" />
+                    {t('contact.send')}
+                  </>
+                )}
               </Button>
             </form>
           </Card>
@@ -73,9 +170,9 @@ const Contact = () => {
           {/* Contact Information */}
           <div className="space-y-8">
             <div>
-              <h3 className="text-2xl font-semibold mb-6 text-foreground">Contact Information</h3>
+              <h3 className="text-2xl font-semibold mb-6 text-foreground">{t('contact.infoTitle')}</h3>
               <p className="text-muted-foreground mb-8">
-                Reach out to us through any of these channels. We typically respond within 24 hours.
+                {t('contact.infoDescription')}
               </p>
             </div>
 
@@ -86,8 +183,8 @@ const Contact = () => {
                     <Mail className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-card-foreground">Email Support</h4>
-                    <p className="text-muted-foreground">support@itopiaboards.com</p>
+                    <h4 className="font-semibold text-card-foreground">{t('contact.emailSupport')}</h4>
+                    <p className="text-muted-foreground">contacto.itopia@gmail.com</p>
                   </div>
                 </div>
               </Card>
@@ -98,8 +195,8 @@ const Contact = () => {
                     <Phone className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-card-foreground">Phone Support</h4>
-                    <p className="text-muted-foreground">+1 (555) 123-4567</p>
+                    <h4 className="font-semibold text-card-foreground">{t('contact.phoneSupport')}</h4>
+                    <p className="text-muted-foreground">+5989912345600000</p>
                   </div>
                 </div>
               </Card>
@@ -110,14 +207,14 @@ const Contact = () => {
                     <MapPin className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-card-foreground">Office Location</h4>
-                    <p className="text-muted-foreground">123 Innovation Drive<br />Tech City, TC 12345</p>
+                    <h4 className="font-semibold text-card-foreground">{t('contact.officeLocation')}</h4>
+                    <p className="text-muted-foreground">Montevideo City<br />Mvdeo City, TC 12345</p>
                   </div>
                 </div>
               </Card>
             </div>
 
-            <div className="bg-gradient-card backdrop-blur-md rounded-xl p-6 border border-white/10 text-white">
+            {/* <div className="bg-gradient-card backdrop-blur-md rounded-xl p-6 border border-white/10 text-white">
               <h4 className="font-semibold mb-2">Need Immediate Help?</h4>
               <p className="text-white/80 text-sm mb-4">
                 Check out our comprehensive documentation or join our community forum for instant answers.
@@ -126,7 +223,7 @@ const Contact = () => {
                 <Button variant="glass" size="sm">Documentation</Button>
                 <Button variant="glass" size="sm">Community</Button>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
